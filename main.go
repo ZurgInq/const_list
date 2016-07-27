@@ -14,7 +14,7 @@ import (
 	"text/template"
 )
 
-var constList = `//CODE GENERATED AUTOMATICALLY
+var constListTmpl = `//CODE GENERATED AUTOMATICALLY
 //THIS FILE SHOULD NOT BE EDITED BY HAND
 package {{.Package}}
 
@@ -50,6 +50,7 @@ func main() {
 	packageDir := filepath.Dir(source)
 	packageName := f.Name.Name
 
+	typ := ""
 	consts := make([]string, 0)
 	for _, decl := range f.Decls {
 		switch decl := decl.(type) {
@@ -57,11 +58,21 @@ func main() {
 			switch decl.Tok {
 			case token.CONST:
 				for _, spec := range decl.Specs {
-					switch spec := spec.(type) {
-					case *ast.ValueSpec:
-						if fmt.Sprint(spec.Type) == config.TypeName {
-							consts = append(consts, spec.Names[0].Name)
+					vspec := spec.(*ast.ValueSpec)
+					if vspec.Type == nil && len(vspec.Values) > 0 {
+						typ = ""
+						continue
+					}
+					if vspec.Type != nil {
+						if ident, ok := vspec.Type.(*ast.Ident); ok {
+							typ = ident.Name
+						} else {
+							continue
 						}
+
+					}
+					if typ == config.TypeName {
+						consts = append(consts, vspec.Names[0].Name)
 					}
 				}
 			}
@@ -77,7 +88,7 @@ func main() {
 		Name:    config.TypeName,
 		List:    strings.Join(consts, ", "),
 	}
-	t := template.Must(template.New("const-list").Parse(constList))
+	t := template.Must(template.New("const-list").Parse(constListTmpl))
 
 	var outWriter io.Writer
 
